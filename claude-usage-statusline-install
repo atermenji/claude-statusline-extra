@@ -1,0 +1,264 @@
+#!/bin/bash
+# Claude Code Usage Status Line — Installer
+#
+# Shows 5-hour session and 7-day usage percentages in the Claude Code
+# bottom status line. Polls the Anthropic usage API every 60s, but only
+# when a Claude Code session is active and not idle (5+ min no activity).
+#
+# Requirements: macOS, jq, curl, Claude Code (logged in at least once)
+#
+# Usage:
+#   chmod +x claude-usage-statusline-install
+#   ./claude-usage-statusline-install          # install
+#   ./claude-usage-statusline-install uninstall # remove everything
+
+set -euo pipefail
+
+POLL_SCRIPT="$HOME/.local/bin/claude_usage_poll"
+STATUSLINE_SCRIPT="$HOME/.claude/statusline.sh"
+SETTINGS_FILE="$HOME/.claude/settings.json"
+PLIST_FILE="$HOME/Library/LaunchAgents/com.claude.usage-poll.plist"
+PLIST_LABEL="com.claude.usage-poll"
+
+# ── Uninstall ──────────────────────────────────────────────────────
+
+if [ "${1:-}" = "uninstall" ]; then
+  echo "Uninstalling Claude usage status line..."
+  launchctl unload "$PLIST_FILE" 2>/dev/null || true
+  rm -f "$PLIST_FILE" "$POLL_SCRIPT" "$STATUSLINE_SCRIPT"
+  rm -f /tmp/claude_usage_cache /tmp/claude_usage_cache.lock /tmp/claude_activity_marker
+  echo "Removed poll script, status line script, and launch agent."
+  echo "Note: ~/.claude/settings.json was not modified — remove the statusLine"
+  echo "block manually if you no longer want it."
+  exit 0
+fi
+
+# ── Preflight checks ──────────────────────────────────────────────
+
+if [ "$(uname)" != "Darwin" ]; then
+  echo "Error: This script is macOS-only (uses Keychain and launchd)." >&2
+  exit 1
+fi
+
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required. Install with: brew install jq" >&2
+  exit 1
+fi
+
+if ! security find-generic-password -s "Claude Code-credentials" -w &>/dev/null; then
+  echo "Error: No Claude Code credentials found in Keychain." >&2
+  echo "Make sure Claude Code is installed and you've logged in at least once." >&2
+  exit 1
+fi
+
+# ── Create directories ────────────────────────────────────────────
+
+mkdir -p "$(dirname "$POLL_SCRIPT")"
+mkdir -p "$(dirname "$STATUSLINE_SCRIPT")"
+mkdir -p "$(dirname "$PLIST_FILE")"
+
+# ── Write the poll script ─────────────────────────────────────────
+
+cat > "$POLL_SCRIPT" << 'POLL_EOF'
+#!/bin/bash
+# Polls Claude usage API and writes compact results to a cache file.
+# Called every 60s by launchd. Skips if no active or idle session.
+
+set -euo pipefail
+
+CACHE_FILE="/tmp/claude_usage_cache"
+LOCK_FILE="/tmp/claude_usage_cache.lock"
+ACTIVITY_MARKER="/tmp/claude_activity_marker"
+IDLE_THRESHOLD=300  # 5 minutes in seconds
+KEYCHAIN_SERVICE="Claude Code-credentials"
+API_URL="https://api.anthropic.com/api/oauth/usage"
+
+# --- Guard: no active Claude Code CLI session ---
+if ! ps -eo comm= 2>/dev/null | grep -qx "claude"; then
+  exit 0
+fi
+
+# --- Guard: session idle for 5+ minutes ---
+if [ ! -f "$ACTIVITY_MARKER" ]; then
+  exit 0
+fi
+
+MARKER_AGE=$(( $(date +%s) - $(stat -f %m "$ACTIVITY_MARKER" 2>/dev/null || echo 0) ))
+if [ "$MARKER_AGE" -gt "$IDLE_THRESHOLD" ]; then
+  exit 0
+fi
+
+# --- Guard: prevent concurrent runs ---
+if [ -f "$LOCK_FILE" ]; then
+  LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || echo 0) ))
+  if [ "$LOCK_AGE" -gt 30 ]; then
+    rm -f "$LOCK_FILE"
+  else
+    exit 0
+  fi
+fi
+trap 'rm -f "$LOCK_FILE"' EXIT
+touch "$LOCK_FILE"
+
+# --- Extract OAuth token from macOS Keychain ---
+RAW=$(security find-generic-password -s "$KEYCHAIN_SERVICE" -w 2>/dev/null) || exit 1
+TOKEN=$(echo "$RAW" | sed 's/.*"accessToken":"\([^"]*\)".*/\1/')
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "$RAW" ]; then
+  exit 1
+fi
+
+# --- Call the usage API ---
+BODY=$(curl -s --max-time 10 \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "anthropic-beta: oauth-2025-04-20" \
+  "$API_URL") || exit 1
+
+# --- Parse and write cache ---
+{
+  echo "$BODY" | jq -r '
+    def fmt_reset: if . then (. | split(".")[0] | split("+")[0] | gsub("T"; " ")) else "?" end;
+    def fmt_pct: if . then (. * 10 | round / 10 | tostring) else "?" end;
+    "five_hour_pct=\(.five_hour.utilization | fmt_pct)",
+    "five_hour_reset=\"\(.five_hour.resets_at | fmt_reset)\"",
+    "seven_day_pct=\(.seven_day.utilization | fmt_pct)",
+    "seven_day_reset=\"\(.seven_day.resets_at | fmt_reset)\"",
+    "seven_day_opus_pct=\(if .seven_day_opus then .seven_day_opus.utilization | fmt_pct else "?" end)",
+    "seven_day_sonnet_pct=\(if .seven_day_sonnet then .seven_day_sonnet.utilization | fmt_pct else "?" end)",
+    "fetched_at=\(now | floor)"
+  '
+} > "$CACHE_FILE" 2>/dev/null
+POLL_EOF
+chmod +x "$POLL_SCRIPT"
+echo "Wrote $POLL_SCRIPT"
+
+# ── Write the status line script ──────────────────────────────────
+
+cat > "$STATUSLINE_SCRIPT" << 'SL_EOF'
+#!/bin/bash
+input=$(cat)
+
+# Touch activity marker so the poll script knows the session is active
+touch /tmp/claude_activity_marker
+
+MODEL=$(echo "$input" | jq -r '.model.display_name')
+COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
+DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
+USED=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+
+COST_FMT=$(printf '$%.2f' "$COST")
+
+# Format duration as "Xh Ym" or "Ym Zs"
+DURATION_SEC=$((DURATION_MS / 1000))
+HOURS=$((DURATION_SEC / 3600))
+MINS=$(( (DURATION_SEC % 3600) / 60 ))
+SECS=$((DURATION_SEC % 60))
+if [ "$HOURS" -gt 0 ]; then
+  TIME_FMT="${HOURS}h ${MINS}m"
+else
+  TIME_FMT="${MINS}m ${SECS}s"
+fi
+
+# Emoji for usage percentage thresholds
+usage_emoji() {
+  local pct="${1%.*}"  # strip decimals
+  pct="${pct:-0}"
+  if [ "$pct" -ge 80 ]; then   echo "🔴"
+  elif [ "$pct" -ge 50 ]; then echo "🟡"
+  else                          echo "🟢"
+  fi
+}
+
+# Format reset time as relative "Tue 4pm" style
+fmt_reset() {
+  local reset_utc="$1"
+  if [ -z "$reset_utc" ] || [ "$reset_utc" = "?" ]; then return; fi
+  # Convert "2026-02-25 16:00:01" UTC to local and format as "Tue 4pm"
+  local epoch
+  epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$reset_utc" "+%s" 2>/dev/null) || return
+  date -jf "%s" "$epoch" "+%a %-I%p" 2>/dev/null | sed 's/AM/am/;s/PM/pm/'
+}
+
+# Read usage cache if available
+USAGE=""
+if [ -f /tmp/claude_usage_cache ]; then
+  source /tmp/claude_usage_cache 2>/dev/null
+  if [ -n "$five_hour_pct" ] && [ "$five_hour_pct" != "?" ]; then
+    USAGE=" | $(usage_emoji "$five_hour_pct") 5h: ${five_hour_pct}%"
+  fi
+  if [ -n "$seven_day_pct" ] && [ "$seven_day_pct" != "?" ]; then
+    RESET_FMT=$(fmt_reset "$seven_day_reset")
+    RESET_PART=""
+    if [ -n "$RESET_FMT" ]; then
+      RESET_PART=" (${RESET_FMT})"
+    fi
+    USAGE="${USAGE} $(usage_emoji "$seven_day_pct") 7d: ${seven_day_pct}%${RESET_PART}"
+  fi
+fi
+
+echo "[$MODEL] $COST_FMT | $TIME_FMT | ctx: ${USED}%${USAGE}"
+SL_EOF
+chmod +x "$STATUSLINE_SCRIPT"
+echo "Wrote $STATUSLINE_SCRIPT"
+
+# ── Write the launchd plist ───────────────────────────────────────
+
+cat > "$PLIST_FILE" << PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${PLIST_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${POLL_SCRIPT}</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardErrorPath</key>
+    <string>/tmp/claude_usage_poll.err</string>
+</dict>
+</plist>
+PLIST_EOF
+echo "Wrote $PLIST_FILE"
+
+# ── Load the launch agent ─────────────────────────────────────────
+
+launchctl unload "$PLIST_FILE" 2>/dev/null || true
+launchctl load "$PLIST_FILE"
+echo "Loaded launch agent (polls every 60s)"
+
+# ── Configure Claude Code settings ────────────────────────────────
+
+if [ -f "$SETTINGS_FILE" ]; then
+  if jq -e '.statusLine' "$SETTINGS_FILE" >/dev/null 2>&1; then
+    echo ""
+    echo "Note: ~/.claude/settings.json already has a statusLine entry."
+    echo "Make sure it points to: ~/.claude/statusline.sh"
+  else
+    UPDATED=$(jq '. + {"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}' "$SETTINGS_FILE")
+    echo "$UPDATED" > "$SETTINGS_FILE"
+    echo "Updated ~/.claude/settings.json with statusLine config"
+  fi
+else
+  cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  }
+}
+SETTINGS_EOF
+  echo "Created ~/.claude/settings.json with statusLine config"
+fi
+
+# ── Done ──────────────────────────────────────────────────────────
+
+echo ""
+echo "Done! Restart Claude Code to see usage in the status line."
+echo "The status bar will show:  [Model] \$cost | time | ctx: N% | 5h: N% 7d: N%"
+echo ""
+echo "To uninstall:  $0 uninstall"
