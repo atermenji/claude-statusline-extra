@@ -23,6 +23,7 @@ CACHE_FILE="$HOME/.claude/usage_cache.json"
 if [ "${1:-}" = "uninstall" ]; then
   echo "Uninstalling Claude usage status line..."
   rm -f "$STATUSLINE_SCRIPT" "$CACHE_FILE"
+  rmdir "${CACHE_FILE}.lock" 2>/dev/null || true
   if [ -f "$SETTINGS_FILE" ]; then
     UPDATED=$(jq 'del(.statusLine)' "$SETTINGS_FILE")
     echo "$UPDATED" > "$SETTINGS_FILE"
@@ -64,6 +65,11 @@ CACHE_MAX_AGE=60
 # ── Background usage fetch (non-blocking) ────────────────────────
 
 refresh_usage() {
+  # Atomic lock via mkdir to prevent concurrent fetches
+  LOCK="${CACHE}.lock"
+  if ! mkdir "$LOCK" 2>/dev/null; then return; fi
+  trap 'rmdir "$LOCK" 2>/dev/null' RETURN
+
   RAW=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null) || return
 
   # Use jq for robust JSON parsing instead of fragile sed regex
@@ -78,13 +84,22 @@ refresh_usage() {
       --config - \
       "https://api.anthropic.com/api/oauth/usage") || return
 
-  echo "$BODY" | jq -c '{
+  # Validate response contains expected data before caching
+  if ! echo "$BODY" | jq -e '.five_hour' >/dev/null 2>&1; then return; fi
+
+  # Atomic write: write to temp file then mv to prevent partial reads
+  TMP_CACHE=$(mktemp "${CACHE}.XXXXXX")
+  if echo "$BODY" | jq -c '{
     five_hour_pct: (if .five_hour.utilization then (.five_hour.utilization * 10 | round / 10) else null end),
     five_hour_reset: (.five_hour.resets_at // null | if . then split(".")[0] | split("+")[0] | gsub("T"; " ") else null end),
     seven_day_pct: (if .seven_day.utilization then (.seven_day.utilization * 10 | round / 10) else null end),
     seven_day_reset: (.seven_day.resets_at // null | if . then split(".")[0] | split("+")[0] | gsub("T"; " ") else null end),
     fetched_at: (now | floor)
-  }' > "$CACHE" 2>/dev/null
+  }' > "$TMP_CACHE" 2>/dev/null; then
+    mv "$TMP_CACHE" "$CACHE"
+  else
+    rm -f "$TMP_CACHE"
+  fi
 }
 
 # Refresh cache in background if stale or missing
