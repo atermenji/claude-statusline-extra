@@ -16,15 +16,19 @@ set -euo pipefail
 
 STATUSLINE_SCRIPT="$HOME/.claude/statusline.sh"
 SETTINGS_FILE="$HOME/.claude/settings.json"
+CACHE_FILE="$HOME/.claude/usage_cache.json"
 
 # ── Uninstall ──────────────────────────────────────────────────────
 
 if [ "${1:-}" = "uninstall" ]; then
   echo "Uninstalling Claude usage status line..."
-  rm -f "$STATUSLINE_SCRIPT" /tmp/claude_usage_cache
-  echo "Removed status line script and cache."
-  echo "Note: ~/.claude/settings.json was not modified — remove the statusLine"
-  echo "block manually if you no longer want it."
+  rm -f "$STATUSLINE_SCRIPT" "$CACHE_FILE"
+  if [ -f "$SETTINGS_FILE" ]; then
+    UPDATED=$(jq 'del(.statusLine)' "$SETTINGS_FILE")
+    echo "$UPDATED" > "$SETTINGS_FILE"
+    echo "Removed statusLine from ~/.claude/settings.json"
+  fi
+  echo "Done."
   exit 0
 fi
 
@@ -54,21 +58,25 @@ cat > "$STATUSLINE_SCRIPT" << 'SL_EOF'
 #!/bin/bash
 input=$(cat)
 
-CACHE="/tmp/claude_usage_cache"
+CACHE="$HOME/.claude/usage_cache.json"
 CACHE_MAX_AGE=60
 
 # ── Background usage fetch (non-blocking) ────────────────────────
 
 refresh_usage() {
   RAW=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null) || return
-  TOKEN=$(echo "$RAW" | sed 's/.*"accessToken":"\([^"]*\)".*/\1/')
-  [ -z "$TOKEN" ] || [ "$TOKEN" = "$RAW" ] && return
 
-  BODY=$(curl -s --max-time 10 \
-    -H "Accept: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "anthropic-beta: oauth-2025-04-20" \
-    "https://api.anthropic.com/api/oauth/usage") || return
+  # Use jq for robust JSON parsing instead of fragile sed regex
+  TOKEN=$(echo "$RAW" | jq -r '(.claudeAiOauth.accessToken // .accessToken) // empty' 2>/dev/null)
+  [ -z "$TOKEN" ] && return
+
+  # Pass auth header via stdin (--config -) so the token doesn't appear in ps output
+  BODY=$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | \
+    curl -s --max-time 10 \
+      -H "Accept: application/json" \
+      -H "anthropic-beta: oauth-2025-04-20" \
+      --config - \
+      "https://api.anthropic.com/api/oauth/usage") || return
 
   echo "$BODY" | jq -c '{
     five_hour_pct: (if .five_hour.utilization then (.five_hour.utilization * 10 | round / 10) else null end),
