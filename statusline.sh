@@ -92,6 +92,15 @@ usage_emoji() {
   fi
 }
 
+usage_color() {
+  local pct="${1%.*}"
+  pct="${pct:-0}"
+  if [ "$pct" -ge 80 ]; then   echo "196"
+  elif [ "$pct" -ge 50 ]; then echo "226"
+  else                          echo "46"
+  fi
+}
+
 fmt_reset() {
   local reset_utc="$1"
   [ -z "$reset_utc" ] || [ "$reset_utc" = "null" ] && return
@@ -121,6 +130,14 @@ stylize() {
     yellow) codes="${codes:+$codes;}33" ;; blue) codes="${codes:+$codes;}34" ;;
     magenta) codes="${codes:+$codes;}35" ;; cyan) codes="${codes:+$codes;}36" ;;
     white) codes="${codes:+$codes;}37" ;;
+    \#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+      # Truecolor hex: #RRGGBB
+      local hex="${color#\#}"
+      local r=$((16#${hex:0:2})) g=$((16#${hex:2:2})) b=$((16#${hex:4:2}))
+      codes="${codes:+$codes;}38;2;${r};${g};${b}" ;;
+    [0-9]|[0-9][0-9]|[12][0-9][0-9])
+      # 256-color: 0-255
+      codes="${codes:+$codes;}38;5;${color}" ;;
   esac
   if [ -n "$codes" ]; then
     printf '\033[%sm%s\033[0m' "$codes" "$text"
@@ -160,6 +177,7 @@ fmt_seg_context() {
 fmt_seg_5h() {
   local label="${1:-5h}" do_emoji="${2:-true}" do_bold="${3:-true}" do_reset="${4:-true}" color="$5"
   [ -z "$five_hour_pct" ] && return
+  [ -z "$color" ] && color=$(usage_color "$five_hour_pct")
   local val=$(stylize "${five_hour_pct}%" "$do_bold" "$color")
   local reset_part=""
   if [ "$do_reset" = "true" ] && [ -n "$five_hour_reset" ] && [ "$five_hour_reset" != "null" ]; then
@@ -184,6 +202,7 @@ fmt_seg_5h() {
 fmt_seg_7d() {
   local label="${1:-weekly}" do_emoji="${2:-true}" do_bold="${3:-true}" do_reset="${4:-true}" color="$5"
   [ -z "$seven_day_pct" ] && return
+  [ -z "$color" ] && color=$(usage_color "$seven_day_pct")
   local val=$(stylize "${seven_day_pct}%" "$do_bold" "$color")
   local reset_part=""
   if [ "$do_reset" = "true" ]; then
@@ -213,7 +232,7 @@ DEFAULT_SEG_LIST="model cost time context 5h 7d tokens"
 DEFAULTS_CONFIG="$HOME/.claude/statusline.defaults.json"
 DEFAULT_JSON='{
   "_options": {
-    "color": ["red", "green", "yellow", "blue", "magenta", "cyan", "white"],
+    "color": "named: red/green/yellow/blue/magenta/cyan/white, 256-color: 0-255, or truecolor: #RRGGBB",
     "bold": "true or false",
     "emoji": "true = auto circle (5h/7d only), false = none, or any string e.g. \"💰\", \"🔋\", \"⏱️\"",
     "label": "custom label text, e.g. \"ctx\", \"weekly\", \"session\"",
