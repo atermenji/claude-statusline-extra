@@ -102,14 +102,24 @@ fmt_reset() {
 
 USAGE=""
 if [ -f "$CACHE" ]; then
-  IFS=$'\t' read -r five_hour_pct seven_day_pct seven_day_reset < <(
-    jq -r '[.five_hour_pct // "", .seven_day_pct // "", .seven_day_reset // ""] | @tsv' "$CACHE" 2>/dev/null
+  IFS=$'\t' read -r five_hour_pct five_hour_reset seven_day_pct seven_day_reset < <(
+    jq -r '[.five_hour_pct // "", .five_hour_reset // "", .seven_day_pct // "", .seven_day_reset // ""] | @tsv' "$CACHE" 2>/dev/null
   )
 
   BOLD=$'\033[1m'
   RESET=$'\033[0m'
   if [ -n "$five_hour_pct" ]; then
-    USAGE=" | $(usage_emoji "$five_hour_pct") 5h: ${BOLD}${five_hour_pct}%${RESET}"
+    RESET_5H=""
+    if [ -n "$five_hour_reset" ] && [ "$five_hour_reset" != "null" ]; then
+      reset_epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$five_hour_reset" "+%s" 2>/dev/null) || true
+      if [ -n "$reset_epoch" ]; then
+        remaining=$(( reset_epoch - $(date +%s) ))
+        if [ "$remaining" -gt 0 ]; then
+          RESET_5H=" ($(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m)"
+        fi
+      fi
+    fi
+    USAGE=" | $(usage_emoji "$five_hour_pct") 5h: ${BOLD}${five_hour_pct}%${RESET}${RESET_5H}"
   fi
   if [ -n "$seven_day_pct" ]; then
     RESET_FMT=$(fmt_reset "${seven_day_reset:-}")
