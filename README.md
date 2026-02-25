@@ -2,9 +2,8 @@
 
 A status line extension for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that shows session info and API usage percentages.
 
-```
-[Claude 4 Opus] $0.42 | 12m 30s | ctx: 45% | 32k in / 8k out | 🟢 5h: 12.3% 🟢 7d: 8.1% (Fri 3pm)
-```
+<img width="1358" height="64" alt="CleanShot 2026-02-25 at 13 04 04@2x" src="https://github.com/user-attachments/assets/f76a1f75-693b-4a82-9eeb-faa7f736fd79" />
+
 
 Shows: model name, session cost, duration, context window usage, token counts, 5-hour and 7-day API usage with color indicators (🟢 < 50%, 🟡 50-80%, 🔴 > 80%) and next reset time.
 
