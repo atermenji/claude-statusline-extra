@@ -248,9 +248,10 @@ SEG_CONFIG=""
 if [ -f "$CONFIG" ]; then
   SEG_CONFIG=$(jq -r '
     def optstr: if . == null then "" elif type == "boolean" then (if . then "true" else "false" end) else tostring end;
+    def D: "\u001f";
     .segments // [] | .[] |
-    if type == "string" then "\(.)|||||"
-    else "\(.name)|\(.label // "")|\(.emoji | optstr)|\(.bold | optstr)|\(.reset | optstr)|\(.color // "")"
+    if type == "string" then "\(.)" + D + D + D + D + D
+    else "\(.name)" + D + "\(.label // "")" + D + "\(.emoji | optstr)" + D + "\(.bold | optstr)" + D + "\(.reset | optstr)" + D + "\(.color // "")"
     end
   ' "$CONFIG" 2>/dev/null)
 fi
@@ -258,7 +259,7 @@ fi
 if [ -z "$SEG_CONFIG" ]; then
   SEG_CONFIG=""
   for s in $DEFAULT_SEG_LIST; do
-    SEG_CONFIG="${SEG_CONFIG}${s}|||||
+    SEG_CONFIG="${SEG_CONFIG}${s}$(printf '\x1f\x1f\x1f\x1f\x1f')
 "
   done
 fi
@@ -266,7 +267,7 @@ fi
 # ── Build output ─────────────────────────────────────────────────
 
 OUTPUT=""
-while IFS='|' read -r seg_name seg_label seg_emoji seg_bold seg_reset seg_color _; do
+while IFS=$'\x1f' read -r seg_name seg_label seg_emoji seg_bold seg_reset seg_color _; do
   [ -z "$seg_name" ] && continue
   PART=""
   case "$seg_name" in
