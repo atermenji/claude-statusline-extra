@@ -69,7 +69,7 @@ IFS=$'\t' read -r MODEL COST DURATION_MS USED IN_K OUT_K < <(
   ] | @tsv'
 )
 
-COST_FMT=$(printf '$%.2f' "$COST")
+printf -v COST_FMT '$%.2f' "$COST"
 
 DURATION_SEC=$((DURATION_MS / 1000))
 HOURS=$((DURATION_SEC / 3600))
@@ -264,8 +264,7 @@ fi
 if [ -z "$SEG_CONFIG" ]; then
   SEG_CONFIG=""
   for s in $DEFAULT_SEG_LIST; do
-    SEG_CONFIG="${SEG_CONFIG}${s}$(printf '\x1f\x1f\x1f\x1f\x1f')
-"
+    SEG_CONFIG="${SEG_CONFIG}${s}"$'\x1f\x1f\x1f\x1f\x1f\n'
   done
 fi
 
