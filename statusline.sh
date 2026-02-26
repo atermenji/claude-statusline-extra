@@ -1,6 +1,7 @@
 #!/bin/bash
 umask 077
 input=$(cat)
+NOW=$(date +%s)
 
 CACHE="$HOME/.claude/usage_cache.json"
 CACHE_MAX_AGE=60
@@ -52,7 +53,7 @@ refresh_usage() {
 }
 
 # Refresh cache in background if stale or missing
-if [ ! -f "$CACHE" ] || [ $(($(date +%s) - $(stat -f %m "$CACHE"))) -gt $CACHE_MAX_AGE ]; then
+if [ ! -f "$CACHE" ] || [ $((NOW - $(stat -f %m "$CACHE"))) -gt $CACHE_MAX_AGE ]; then
   refresh_usage &
 fi
 
@@ -109,7 +110,9 @@ fmt_reset() {
   [ -z "$reset_utc" ] || [ "$reset_utc" = "null" ] && return
   local epoch
   epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$reset_utc" "+%s" 2>/dev/null) || return
-  REPLY=$(date -jf "%s" "$epoch" "+%a %-I%p" 2>/dev/null | sed 's/AM/am/;s/PM/pm/')
+  REPLY=$(date -jf "%s" "$epoch" "+%a %-I%p" 2>/dev/null) || return
+  REPLY="${REPLY//AM/am}"
+  REPLY="${REPLY//PM/pm}"
 }
 
 five_hour_pct=""
@@ -202,7 +205,7 @@ fmt_seg_5h() {
     local reset_epoch
     reset_epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$five_hour_reset" "+%s" 2>/dev/null) || true
     if [ -n "$reset_epoch" ]; then
-      local remaining=$(( reset_epoch - $(date +%s) ))
+      local remaining=$(( reset_epoch - NOW ))
       if [ "$remaining" -gt 0 ]; then
         reset_part=" ($(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m)"
       fi
