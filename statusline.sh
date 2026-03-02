@@ -201,15 +201,12 @@ fmt_seg_5h() {
   [ -z "$color" ] && { usage_color "$five_hour_pct"; color="$REPLY"; }
   stylize "${five_hour_pct}%" "$do_bold" "$color"; local val="$REPLY"
   local reset_part=""
-  if [ "$do_reset" = "true" ] && [ -n "$five_hour_reset" ] && [ "$five_hour_reset" != "null" ]; then
-    local reset_epoch
-    reset_epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$five_hour_reset" "+%s" 2>/dev/null) || true
-    if [ -n "$reset_epoch" ]; then
-      local remaining=$(( reset_epoch - NOW ))
-      if [ "$remaining" -gt 0 ]; then
-        reset_part=" ($(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m)"
-      fi
+  if [ "$do_reset" = "true" ] && [ -n "$five_hour_reset_epoch" ]; then
+    local remaining=$(( five_hour_reset_epoch - NOW ))
+    if [ "$remaining" -gt 0 ]; then
+      reset_part=" ($(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m)"
     fi
+  fi
   fi
   local emoji_part=""
   if [ "$do_emoji" = "true" ]; then
