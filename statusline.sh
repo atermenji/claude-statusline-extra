@@ -98,9 +98,9 @@ usage_emoji() {
 usage_color() {
   local pct="${1%.*}"
   pct="${pct:-0}"
-  if [ "$pct" -ge 80 ]; then   REPLY="196"
-  elif [ "$pct" -ge 50 ]; then REPLY="226"
-  else                          REPLY="46"
+  if [ "$pct" -ge 80 ]; then   REPLY="red"
+  elif [ "$pct" -ge 50 ]; then REPLY="yellow"
+  else                          REPLY="green"
   fi
 }
 
