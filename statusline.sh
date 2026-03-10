@@ -115,6 +115,17 @@ fmt_reset() {
   REPLY="${REPLY//PM/pm}"
 }
 
+fmt_reset_countdown() {
+  local reset_utc="$1"
+  REPLY=""
+  [ -z "$reset_utc" ] || [ "$reset_utc" = "null" ] && return
+  local epoch
+  epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$reset_utc" "+%s" 2>/dev/null) || return
+  local remaining=$(( epoch - NOW ))
+  [ "$remaining" -le 0 ] && return
+  REPLY="$(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m"
+}
+
 five_hour_pct=""
 five_hour_reset=""
 seven_day_pct=""
@@ -202,7 +213,7 @@ fmt_seg_5h() {
   stylize "${five_hour_pct}%" "$do_bold" "$color"; local val="$REPLY"
   local reset_part=""
   if [ "$do_reset" = "true" ]; then
-    fmt_reset "${five_hour_reset:-}"
+    fmt_reset_countdown "${five_hour_reset:-}"
     [ -n "$REPLY" ] && reset_part=" (${REPLY})"
   fi
   local emoji_part=""

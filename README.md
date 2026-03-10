@@ -57,8 +57,8 @@ Create `~/.claude/statusline.json` to customize which segments are shown and how
 | `cost` | Session cost (e.g. `$1.23`) |
 | `time` | Session duration (e.g. `12m 34s`) |
 | `context` | Context window usage percentage |
-| `5h` | 5-hour API usage with reset countdown |
-| `7d` | 7-day API usage with reset day |
+| `5h` | 5-hour API usage with remaining time countdown (e.g. `3h 12m`) |
+| `7d` | 7-day API usage with reset day (e.g. `Mon 3pm`) |
 | `tokens` | Token counts (e.g. `42k in / 18k out`) |
 
 ### Segment options
