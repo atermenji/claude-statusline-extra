@@ -1,0 +1,127 @@
+README.md
+  e39a4c41f65d9250 8,10,72-76,127,129-130,132,138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "74b680b5c5502db4e72a1e077565cdbb05339730",
+  "prompts": {
+    "e39a4c41f65d9250": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d63000-4ccc-456f-aca0-9c612a8988a0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Artur Termenji <atermenji@gmail.com>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "hi",
+          "timestamp": "2026-03-11T16:16:33.501Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\n\nHi! How can I help you today?",
+          "timestamp": "2026-03-11T16:16:36.193Z"
+        },
+        {
+          "type": "user",
+          "text": "check out my README. shall we change anything to make it more concise and clear?",
+          "timestamp": "2026-03-11T16:16:40.896Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/README.md"
+          },
+          "timestamp": "2026-03-11T16:16:44.054Z"
+        },
+        {
+          "type": "assistant",
+          "text": "The README is already pretty well-structured. Here are a few suggestions to tighten it up:\n\n1. **Line 8** — The parenthetical description duplicates the table below. Could be shortened to just the key highlight (color thresholds).\n2. **Lines 54-72** — The two tables (segments + options) are clear and useful, keep as-is.\n3. **Lines 99-142** — Three JSON examples is a lot. The \"full defaults\" example largely repeats info from the tables. Could drop it or collapse it into a `<details>` tag.\n4. **Line 74** — The color compatibility note is long for something most users won't hit. Good candidate for a `<details>` block.\n5. **Lines 144-147** — Security section is two sentences that could merge into one.\n6. **Lines 149-157** — \"Updating the checksum\" is a contributor concern, not a user one. Could move to a CONTRIBUTING.md or put in a `<details>` tag.\n\nThe biggest wins would be:\n- **Remove or collapse the \"full defaults\" example** (it's redundant with the tables + other examples)\n- **Collapse the color compatibility note and checksum section** into `<details>` blocks\n\nWant me to make these changes?",
+          "timestamp": "2026-03-11T16:16:53.072Z"
+        },
+        {
+          "type": "user",
+          "text": "yep",
+          "timestamp": "2026-03-11T16:19:50.143Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/README.md",
+            "new_string": "Shows model, cost, duration, context usage, tokens, and 5h/7d API usage with color indicators (🟢 < 50%, 🟡 50-80%, 🔴 > 80%). Usage data is fetched from the Anthropic API every 60 seconds and cached locally.\n\n> **Note:** The Claude Code usage API is in private beta and may stop working.",
+            "old_string": "Shows: model name, session cost, duration, context window usage, token counts, 5-hour and 7-day API usage with color indicators (🟢 < 50%, 🟡 50-80%, 🔴 > 80%) and next reset time.\n\nUsage data is fetched from the Anthropic API in the background every 60 seconds and cached locally.\n\n**Note** Claude Code usage API is a private beta and may stop working.",
+            "replace_all": false
+          },
+          "timestamp": "2026-03-11T16:19:55.438Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/README.md",
+            "new_string": "<details>\n<summary><strong>Note:</strong> Color support varies across terminals.</summary>\n\nNamed colors (e.g. `red`, `cyan`) have the widest compatibility, 256-color codes (`0`–`255`) work in most modern terminals, and truecolor hex (`#RRGGBB`) requires 24-bit color support. If colors don't appear as expected, try a different format.\n</details>",
+            "old_string": "**Note:** Color support varies across terminals and their configurations. Named colors (e.g. `red`, `cyan`) have the widest compatibility, 256-color codes (`0`–`255`) work in most modern terminals, and truecolor hex (`#RRGGBB`) requires a terminal with 24-bit color support. If colors don't appear as expected, try a different format to see what your terminal supports.",
+            "replace_all": false
+          },
+          "timestamp": "2026-03-11T16:22:34.409Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/README.md",
+            "new_string": "## Security\n\nThe installer verifies `statusline.sh` against an embedded SHA256 checksum. The script reads Claude Code OAuth credentials from the macOS Keychain to query the Anthropic usage API.\n\n<details>\n<summary><strong>Updating the checksum</strong> (contributors only)</summary>\n\nWhen modifying `statusline.sh`, regenerate the checksum:\n\n```bash\nshasum -a 256 statusline.sh | cut -d ' ' -f 1\n# Update EXPECTED_SHA256 in install.sh with the hash above\n```\n</details>",
+            "old_string": "Full defaults (equivalent to no config file):\n\n```json\n{\n  \"colors\": {\n    \"high\": \"red\",\n    \"medium\": \"yellow\",\n    \"low\": \"green\"\n  },\n  \"segments\": [\n    \"model\",\n    \"cost\",\n    \"time\",\n    { \"name\": \"context\", \"label\": \"ctx\" },\n    { \"name\": \"5h\", \"emoji\": true, \"bold\": true, \"reset\": true },\n    { \"name\": \"7d\", \"label\": \"weekly\", \"emoji\": true, \"bold\": true, \"reset\": true },\n    \"tokens\"\n  ]\n}\n```\n\n## Security\n\nThe installer verifies the downloaded `statusline.sh` against an embedded SHA256 checksum before installation.\nThe `statusline.sh` script reads Claude Code OAuth credentials from the macOS Keychain to query the Anthropic usage API.\n\n## Updating the checksum\n\nWhen modifying `statusline.sh`, regenerate the checksum files:\n\n```bash\nshasum -a 256 statusline.sh | cut -d ' ' -f 1\n# Update EXPECTED_SHA256 in install.sh with the hash above\n```",
+            "replace_all": false
+          },
+          "timestamp": "2026-03-11T16:26:14.468Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Here's what I changed:\n\n- **Intro paragraph** — merged three lines into two concise sentences, made the beta note a proper blockquote\n- **Color compatibility note** — collapsed into a `<details>` block\n- **\"Full defaults\" example** — removed (redundant with the tables and other two examples)\n- **Security** — merged into one sentence\n- **Checksum section** — collapsed into a `<details>` block labeled \"contributors only\"\n\nWant me to commit this?",
+          "timestamp": "2026-03-11T16:30:24.255Z"
+        },
+        {
+          "type": "user",
+          "text": "yes and push",
+          "timestamp": "2026-03-11T16:32:38.892Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git diff",
+            "description": "Show changes to commit"
+          },
+          "timestamp": "2026-03-11T16:32:42.818Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "Recent commit history"
+          },
+          "timestamp": "2026-03-11T16:32:43.351Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git add README.md && git commit -m \"$(cat <<'EOF'\nStreamline README for conciseness and clarity\nEOF\n)\" && git push",
+            "description": "Commit and push README changes"
+          },
+          "timestamp": "2026-03-11T16:32:46.857Z"
+        }
+      ],
+      "total_additions": 12,
+      "total_deletions": 30,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}
