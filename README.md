@@ -5,11 +5,9 @@ A status line extension for [Claude Code](https://docs.anthropic.com/en/docs/cla
 <img width="1324" height="150" alt="CleanShot 2026-03-02 at 18 01 15@2x" src="https://github.com/user-attachments/assets/59367654-f4cf-44ac-abd3-82d1c84826fb" />
 
 
-Shows: model name, session cost, duration, context window usage, token counts, 5-hour and 7-day API usage with color indicators (🟢 < 50%, 🟡 50-80%, 🔴 > 80%) and next reset time.
+Shows model, cost, duration, context usage, tokens, and 5h/7d API usage with color indicators (🟢 < 50%, 🟡 50-80%, 🔴 > 80%). Usage data is fetched from the Anthropic API every 60 seconds and cached locally.
 
-Usage data is fetched from the Anthropic API in the background every 60 seconds and cached locally.
-
-**Note** Claude Code usage API is a private beta and may stop working.
+> **Note:** The Claude Code usage API is in private beta and may stop working.
 
 ## Requirements
 
@@ -71,7 +69,11 @@ Create `~/.claude/statusline.json` to customize which segments are shown and how
 | `label` | string | Custom label text (e.g. `"ctx"`, `"weekly"`) |
 | `reset` | boolean | Show reset countdown (5h/7d only) |
 
-**Note:** Color support varies across terminals and their configurations. Named colors (e.g. `red`, `cyan`) have the widest compatibility, 256-color codes (`0`–`255`) work in most modern terminals, and truecolor hex (`#RRGGBB`) requires a terminal with 24-bit color support. If colors don't appear as expected, try a different format to see what your terminal supports.
+<details>
+<summary><strong>Note:</strong> Color support varies across terminals.</summary>
+
+Named colors (e.g. `red`, `cyan`) have the widest compatibility, 256-color codes (`0`–`255`) work in most modern terminals, and truecolor hex (`#RRGGBB`) requires 24-bit color support. If colors don't appear as expected, try a different format.
+</details>
 
 ### Usage colors
 
@@ -120,37 +122,17 @@ Customized — mix strings and objects:
 }
 ```
 
-Full defaults (equivalent to no config file):
-
-```json
-{
-  "colors": {
-    "high": "red",
-    "medium": "yellow",
-    "low": "green"
-  },
-  "segments": [
-    "model",
-    "cost",
-    "time",
-    { "name": "context", "label": "ctx" },
-    { "name": "5h", "emoji": true, "bold": true, "reset": true },
-    { "name": "7d", "label": "weekly", "emoji": true, "bold": true, "reset": true },
-    "tokens"
-  ]
-}
-```
-
 ## Security
 
-The installer verifies the downloaded `statusline.sh` against an embedded SHA256 checksum before installation.
-The `statusline.sh` script reads Claude Code OAuth credentials from the macOS Keychain to query the Anthropic usage API.
+The installer verifies `statusline.sh` against an embedded SHA256 checksum. The script reads Claude Code OAuth credentials from the macOS Keychain to query the Anthropic usage API.
 
-## Updating the checksum
+<details>
+<summary><strong>Updating the checksum</strong> (contributors only)</summary>
 
-When modifying `statusline.sh`, regenerate the checksum files:
+When modifying `statusline.sh`, regenerate the checksum:
 
 ```bash
 shasum -a 256 statusline.sh | cut -d ' ' -f 1
 # Update EXPECTED_SHA256 in install.sh with the hash above
 ```
+</details>
