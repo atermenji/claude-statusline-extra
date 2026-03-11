@@ -98,9 +98,9 @@ usage_emoji() {
 usage_color() {
   local pct="${1%.*}"
   pct="${pct:-0}"
-  if [ "$pct" -ge 80 ]; then   REPLY="red"
-  elif [ "$pct" -ge 50 ]; then REPLY="yellow"
-  else                          REPLY="green"
+  if [ "$pct" -ge 80 ]; then   REPLY="${USAGE_COLOR_HIGH:-red}"
+  elif [ "$pct" -ge 50 ]; then REPLY="${USAGE_COLOR_MED:-yellow}"
+  else                          REPLY="${USAGE_COLOR_LOW:-green}"
   fi
 }
 
@@ -113,6 +113,17 @@ fmt_reset() {
   REPLY=$(date -jf "%s" "$epoch" "+%a %-I%p" 2>/dev/null) || return
   REPLY="${REPLY//AM/am}"
   REPLY="${REPLY//PM/pm}"
+}
+
+fmt_reset_countdown() {
+  local reset_utc="$1"
+  REPLY=""
+  [ -z "$reset_utc" ] || [ "$reset_utc" = "null" ] && return
+  local epoch
+  epoch=$(date -juf "%Y-%m-%d %H:%M:%S" "$reset_utc" "+%s" 2>/dev/null) || return
+  local remaining=$(( epoch - NOW ))
+  [ "$remaining" -le 0 ] && return
+  REPLY="$(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m"
 }
 
 five_hour_pct=""
@@ -201,11 +212,9 @@ fmt_seg_5h() {
   [ -z "$color" ] && { usage_color "$five_hour_pct"; color="$REPLY"; }
   stylize "${five_hour_pct}%" "$do_bold" "$color"; local val="$REPLY"
   local reset_part=""
-  if [ "$do_reset" = "true" ] && [ -n "$five_hour_reset_epoch" ]; then
-    local remaining=$(( five_hour_reset_epoch - NOW ))
-    if [ "$remaining" -gt 0 ]; then
-      reset_part=" ($(( remaining / 3600 ))h $(( (remaining % 3600) / 60 ))m)"
-    fi
+  if [ "$do_reset" = "true" ]; then
+    fmt_reset_countdown "${five_hour_reset:-}"
+    [ -n "$REPLY" ] && reset_part=" (${REPLY})"
   fi
   local emoji_part=""
   if [ "$do_emoji" = "true" ]; then
@@ -247,6 +256,15 @@ fmt_seg_tokens() {
 
 CONFIG="$HOME/.claude/statusline.json"
 DEFAULT_SEG_LIST="model cost time context 5h 7d tokens"
+
+USAGE_COLOR_HIGH=""
+USAGE_COLOR_MED=""
+USAGE_COLOR_LOW=""
+if [ -f "$CONFIG" ]; then
+  USAGE_COLOR_HIGH=$(jq -r '.colors.high // empty' "$CONFIG" 2>/dev/null)
+  USAGE_COLOR_MED=$(jq -r '.colors.medium // empty' "$CONFIG" 2>/dev/null)
+  USAGE_COLOR_LOW=$(jq -r '.colors.low // empty' "$CONFIG" 2>/dev/null)
+fi
 
 SEG_CONFIG=""
 if [ -f "$CONFIG" ]; then

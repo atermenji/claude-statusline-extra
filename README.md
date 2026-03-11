@@ -57,8 +57,8 @@ Create `~/.claude/statusline.json` to customize which segments are shown and how
 | `cost` | Session cost (e.g. `$1.23`) |
 | `time` | Session duration (e.g. `12m 34s`) |
 | `context` | Context window usage percentage |
-| `5h` | 5-hour API usage with reset countdown |
-| `7d` | 7-day API usage with reset day |
+| `5h` | 5-hour API usage with remaining time countdown (e.g. `3h 12m`) |
+| `7d` | 7-day API usage with reset day (e.g. `Mon 3pm`) |
 | `tokens` | Token counts (e.g. `42k in / 18k out`) |
 
 ### Segment options
@@ -72,6 +72,29 @@ Create `~/.claude/statusline.json` to customize which segments are shown and how
 | `reset` | boolean | Show reset countdown (5h/7d only) |
 
 **Note:** Color support varies across terminals and their configurations. Named colors (e.g. `red`, `cyan`) have the widest compatibility, 256-color codes (`0`–`255`) work in most modern terminals, and truecolor hex (`#RRGGBB`) requires a terminal with 24-bit color support. If colors don't appear as expected, try a different format to see what your terminal supports.
+
+### Usage colors
+
+The `5h` and `7d` segments are automatically colored based on usage percentage: red (≥ 80%), yellow (≥ 50%), green (< 50%). You can override these with a top-level `colors` object:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `high` | `red` | Color when usage ≥ 80% |
+| `medium` | `yellow` | Color when usage ≥ 50% |
+| `low` | `green` | Color when usage < 50% |
+
+```json
+{
+  "colors": {
+    "high": "196",
+    "medium": "226",
+    "low": "46"
+  },
+  "segments": ["5h", "7d"]
+}
+```
+
+Accepts the same color formats as the segment `color` option: named, 256-color, or `#RRGGBB` hex.
 
 ### Examples
 
@@ -101,6 +124,11 @@ Full defaults (equivalent to no config file):
 
 ```json
 {
+  "colors": {
+    "high": "red",
+    "medium": "yellow",
+    "low": "green"
+  },
   "segments": [
     "model",
     "cost",
