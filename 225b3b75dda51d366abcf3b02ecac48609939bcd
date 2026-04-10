@@ -1,0 +1,174 @@
+statusline.sh
+  6b99012045240c0b 8,56-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "225b3b75dda51d366abcf3b02ecac48609939bcd",
+  "prompts": {
+    "6b99012045240c0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c0db77c-be36-4c32-a47c-ed054a5d5059",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Artur Termenji",
+      "messages": [
+        {
+          "type": "user",
+          "text": "in a situation when I hit some usage %, e.g. 5h - 95% and weekly 57% (an example)\nand then I leave claude for several hours to do smth else, just to wait for 5h limit to reset\nwhen I come back my statusline still shows old numbers (5h - 95%) even though /usage will return new numbers with 5h limit reset.\nhow do we make sure claude_status_line-extra is refreshing the numbers when claude window is opened after pause? e.g. on focus. \nlist solutions, make a plan",
+          "timestamp": "2026-04-10T10:16:25.899Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\n\nLet me understand the current implementation first.",
+          "timestamp": "2026-04-10T10:16:29.697Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Agent",
+          "input": {
+            "description": "Explore statusline plugin architecture",
+            "prompt": "Explore the claude-statusline-extra project in /Users/atermenji/Coding/claude-statusline-extra thoroughly. I need to understand:\n\n1. How the status line data is fetched (what triggers a refresh?)\n2. How/when the cached data gets updated\n3. Is there any mechanism for detecting window focus or terminal focus?\n4. How the tmux status line integration works\n5. What timers or polling intervals exist\n\nRead all the main source files - scripts, configuration, etc. Give me a detailed report of the architecture, focusing on the refresh/update mechanism.",
+            "subagent_type": "Explore"
+          },
+          "timestamp": "2026-04-10T10:16:32.797Z"
+        },
+        {
+          "type": "assistant",
+          "text": "## Problem Analysis\n\nThe root cause is clear from the code. Here's what happens:\n\n1. **`statusline.sh` is only invoked by Claude Code** on internal state changes (keystrokes, responses, etc.)\n2. When invoked, if the cache (`~/.claude/usage_cache.json`) is older than 60s, it triggers a **background** refresh (`refresh_usage &`) and **immediately returns stale cached data**\n3. When you return after hours idle, Claude Code re-invokes the script — it sees the cache is stale, fires off a background fetch, but **returns the old 95% numbers** because the async fetch hasn't completed yet\n4. The fresh data lands in the cache moments later, but Claude Code may not re-invoke the script soon enough for you to see it\n\nSo the issue is: **after a long pause, the first invocation always shows stale data** because the refresh is non-blocking.\n\n---\n\n## Solutions (from simplest to most complex)\n\n### 1. Synchronous fetch when cache is very stale\n\nWhen the cache is significantly old (e.g., > 5 minutes), do a **blocking** fetch instead of a background one. The status line will take ~1-2s to render once, but you'll see accurate numbers immediately.\n\n```\nif cache_age > 300s:   # 5 minutes — clearly been away\n    refresh_usage       # blocking (no &)\nelse if cache_age > 60s:\n    refresh_usage &     # background as today\nfi\n```\n\n**Pros:** Simplest change, 2-3 lines of code, no new dependencies\n**Cons:** One-time ~1s delay on first render after returning\n\n### 2. Claude Code hook (`StatusLine` event)\n\nClaude Code supports hooks in `~/.claude/settings.json`. If there's a relevant event (e.g., session start/resume), we could use a hook to pre-warm the cache before the status line is rendered.\n\n**Pros:** Integrates with Claude Code's own lifecycle\n**Cons:** Depends on whether Claude Code fires a suitable event on focus/resume (needs investigation)\n\n### 3. `tmux` focus hook (if using tmux)\n\nIf running inside tmux, use `focus-in` hook:\n```\nset-hook -g pane-focus-in \"run-shell '~/.claude/statusline.sh --refresh'\"\n```\n\n**Pros:** Triggers exactly on window focus\n**Cons:** Only works in tmux; adds external dependency\n\n### 4. Terminal focus events (DECSET 1004)\n\nTerminals that support focus reporting send `\\033[I` (focus in) and `\\033[O` (focus out). A small background watcher could listen for these and refresh the cache.\n\n**Pros:** Works in most modern terminals (iTerm2, Alacritty, Kitty, WezTerm)\n**Cons:** Requires a persistent background process; complex to wire up\n\n### 5. Background daemon / launchd timer\n\nA lightweight `launchd` plist (macOS) that runs `refresh_usage` every 60s regardless of whether Claude is active.\n\n**Pros:** Cache is always fresh\n**Cons:** Unnecessary API calls when Claude isn't even open; adds system-level config\n\n---\n\n## Recommended Plan\n\nI'd go with **Solution 1** as the primary fix — it's minimal, self-contained, and solves the problem directly. We can combine it with **Solution 2** if a suitable hook exists.\n\n**Implementation steps:**\n\n1. Add a `CACHE_STALE_AGE` threshold (e.g., 300s / 5 minutes) to `statusline.sh`\n2. When cache age exceeds `CACHE_STALE_AGE`, run `refresh_usage` **synchronously** (no `&`)\n3. When cache age is between `CACHE_MAX_AGE` (60s) and `CACHE_STALE_AGE` (300s), keep current background behavior\n4. Optionally, add a `--refresh` flag to the script so external triggers (hooks, tmux) can pre-warm the cache\n\nThis way: come back after hours → first status line call blocks for ~1s → you see correct numbers immediately. During active use, the non-blocking behavior stays as-is.\n\nWant me to implement this?",
+          "timestamp": "2026-04-10T10:17:49.830Z"
+        },
+        {
+          "type": "user",
+          "text": "yes, go with solution #1. once implemented, let's research hooks from solution #2. we're interested in hooks on focus, so when I open claude window, but have not started typing or asking for anything yet",
+          "timestamp": "2026-04-10T10:30:27.409Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh"
+          },
+          "timestamp": "2026-04-10T10:30:30.861Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I'll implement the change and research Claude Code hooks in parallel.",
+          "timestamp": "2026-04-10T10:30:34.267Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh",
+            "new_string": "CACHE=\"$HOME/.claude/usage_cache.json\"\nCACHE_MAX_AGE=60\nCACHE_STALE_AGE=300  # After 5 min, fetch synchronously for fresh data on return\n\n# ── Background usage fetch (non-blocking) ────────────────────────",
+            "old_string": "CACHE=\"$HOME/.claude/usage_cache.json\"\nCACHE_MAX_AGE=60\n\n# ── Background usage fetch (non-blocking) ────────────────────────",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T10:30:37.056Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh",
+            "new_string": "# Refresh cache if stale or missing\n# - Very stale (>5 min) or missing: fetch synchronously so the user\n#   sees accurate numbers immediately after returning from a break.\n# - Mildly stale (>60 s): fetch in background (non-blocking).\nif [ ! -f \"$CACHE\" ]; then\n  refresh_usage\nelif [ $((NOW - $(stat -f %m \"$CACHE\"))) -gt $CACHE_STALE_AGE ]; then\n  refresh_usage\nelif [ $((NOW - $(stat -f %m \"$CACHE\"))) -gt $CACHE_MAX_AGE ]; then\n  refresh_usage &\nfi",
+            "old_string": "# Refresh cache in background if stale or missing\nif [ ! -f \"$CACHE\" ] || [ $((NOW - $(stat -f %m \"$CACHE\"))) -gt $CACHE_MAX_AGE ]; then\n  refresh_usage &\nfi",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T10:47:29.874Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Solution #1 is done. Now let me research Claude Code hooks for focus events.",
+          "timestamp": "2026-04-10T10:47:33.112Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Agent",
+          "input": {
+            "description": "Research Claude Code hooks for focus",
+            "prompt": "I need to find out if Claude Code supports any hooks or events that fire when the Claude Code window/terminal gains focus, or when the user returns to the Claude Code session after being away.\n\nSpecifically I'm looking for:\n1. Does Claude Code have a hook event for window focus / session resume / app foreground?\n2. What hook events ARE available? List all of them.\n3. Is there any mechanism to run a command when Claude Code becomes active again after idle?\n\nI need this for a status line extension that needs to refresh cached API data when the user returns to Claude Code after a break. The status line command itself is configured in settings.json under `statusLine.command`, but I need something that fires BEFORE or WHEN the user returns, not just when they type something.\n\nBe thorough - check all available hook event types.",
+            "subagent_type": "claude-code-guide"
+          },
+          "timestamp": "2026-04-10T10:47:38.535Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me verify the final state of the changed section.",
+          "timestamp": "2026-04-10T10:50:46.579Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh",
+            "limit": 65,
+            "offset": 1
+          },
+          "timestamp": "2026-04-10T10:50:47.320Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Looks good. Here's the summary:\n\n## Solution #1 — Implemented\n\nThe change at lines 56-66: when the cache is older than **5 minutes** (`CACHE_STALE_AGE=300`), the fetch runs **synchronously** (blocking). This means:\n\n- **After a long break** → first status line render waits ~1-2s for the API call → you see accurate numbers immediately\n- **During active use** (cache 60s-5min old) → background fetch as before, no delay\n- **Fresh cache** (<60s) → no fetch at all\n\n## Solution #2 — Hooks Research\n\n**Bad news: Claude Code has no focus/foreground hook.** I checked all 27 available hook events. The closest is `SessionStart` with `source: \"resume\"`, but that only fires on explicit session resume (e.g., `claude --continue`), not on window focus.\n\nAvailable events that *don't* help here: `SessionStart`, `SessionEnd`, `Stop`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `FileChanged`, etc. — none of them fire on \"user returned to the window.\"\n\nSo **Solution #1 is the right approach** — it's entirely self-contained and doesn't depend on any external event. The status line script itself detects that it's been a while and does the right thing.\n\nWant me to commit this?",
+          "timestamp": "2026-04-10T10:50:58.141Z"
+        },
+        {
+          "type": "user",
+          "text": "let's commit and make a PR",
+          "timestamp": "2026-04-10T10:55:09.218Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git status",
+            "description": "Show working tree status"
+          },
+          "timestamp": "2026-04-10T10:55:11.867Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git diff",
+            "description": "Show staged and unstaged changes"
+          },
+          "timestamp": "2026-04-10T10:55:12.458Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "Show recent commit messages"
+          },
+          "timestamp": "2026-04-10T10:55:13.492Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git checkout -b fix/sync-refresh-after-idle",
+            "description": "Create feature branch"
+          },
+          "timestamp": "2026-04-10T10:55:16.172Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git add statusline.sh && git commit -m \"$(cat <<'EOF'\nFix stale usage data shown after returning from idle\n\nWhen the cache is very stale (>5 min), fetch usage synchronously\ninstead of in the background. This ensures accurate numbers are\ndisplayed immediately when returning to Claude after a break,\nrather than showing outdated percentages from before the 5h reset.\nEOF\n)\"",
+            "description": "Stage and commit the change"
+          },
+          "timestamp": "2026-04-10T10:58:04.112Z"
+        }
+      ],
+      "total_additions": 10,
+      "total_deletions": 2,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
