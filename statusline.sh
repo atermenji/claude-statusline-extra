@@ -5,6 +5,7 @@ NOW=$(date +%s)
 
 CACHE="$HOME/.claude/usage_cache.json"
 CACHE_MAX_AGE=60
+CACHE_STALE_AGE=300  # After 5 min, fetch synchronously for fresh data on return
 
 # ── Background usage fetch (non-blocking) ────────────────────────
 
@@ -52,8 +53,15 @@ refresh_usage() {
   fi
 }
 
-# Refresh cache in background if stale or missing
-if [ ! -f "$CACHE" ] || [ $((NOW - $(stat -f %m "$CACHE"))) -gt $CACHE_MAX_AGE ]; then
+# Refresh cache if stale or missing
+# - Very stale (>5 min) or missing: fetch synchronously so the user
+#   sees accurate numbers immediately after returning from a break.
+# - Mildly stale (>60 s): fetch in background (non-blocking).
+if [ ! -f "$CACHE" ]; then
+  refresh_usage
+elif [ $((NOW - $(stat -f %m "$CACHE"))) -gt $CACHE_STALE_AGE ]; then
+  refresh_usage
+elif [ $((NOW - $(stat -f %m "$CACHE"))) -gt $CACHE_MAX_AGE ]; then
   refresh_usage &
 fi
 
