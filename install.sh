@@ -23,7 +23,7 @@ STATUSLINE_URL="${REPO_RAW_URL}/statusline.sh"
 # SHA256 of the statusline.sh this installer version expects.
 # Update this hash whenever statusline.sh changes:
 #   shasum -a 256 statusline.sh | cut -d ' ' -f 1
-EXPECTED_SHA256="9d034fe2d871cb7201d091a6f8490377a4e8d5cf2860dd43786a5a2e9dd0e6ac"
+EXPECTED_SHA256="e8ee648861ed204e6543b666c2788c918088a9a69bd953c7d0a51e638a969aed"
 
 # ── Preflight checks ──────────────────────────────────────────────
 
