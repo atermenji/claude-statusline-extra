@@ -2,7 +2,7 @@
 # Claude Code Usage Status Line — Installer
 #
 # Shows session info and 5-hour / 7-day usage percentages in the Claude Code
-# status line. Refreshes usage data from the Anthropic API every 60s in the
+# status line. Refreshes usage data from the Anthropic API every 30s in the
 # background, triggered by the status line itself (no daemon needed).
 #
 # Requirements: macOS, jq, curl, Claude Code (logged in at least once)

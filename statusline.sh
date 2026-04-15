@@ -4,8 +4,8 @@ input=$(cat)
 NOW=$(date +%s)
 
 CACHE="$HOME/.claude/usage_cache.json"
-CACHE_MAX_AGE=60
-CACHE_STALE_AGE=300  # After 5 min, fetch synchronously for fresh data on return
+CACHE_MAX_AGE=30
+CACHE_STALE_AGE=120  # After 2 min, fetch synchronously for fresh data on return
 
 # ── Background usage fetch (non-blocking) ────────────────────────
 
