@@ -1,0 +1,183 @@
+install.sh
+  8cf40b0540392da7 5
+statusline.sh
+  8cf40b0540392da7 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f5cecf5467b8a15b6cdd171cf77e7a2c4c88d531",
+  "prompts": {
+    "8cf40b0540392da7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2cd1d6da-d7ca-45e9-af7d-0a5cbd072bdb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Artur Termenji",
+      "messages": [
+        {
+          "type": "user",
+          "text": "my statusline numbers seem to be outdated. I see 5h 64% and week 52% on /usage right now, but statusline shows 5h 38% week 49%. check what's going on, maybe we're using cache too much",
+          "timestamp": "2026-04-15T10:42:28.853Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me explore the codebase to understand how usage data is fetched and cached.",
+          "timestamp": "2026-04-15T10:42:33.080Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Agent",
+          "input": {
+            "description": "Explore statusline caching logic",
+            "prompt": "Explore this Claude Code statusline extension project thoroughly. I need to understand:\n\n1. How usage data is fetched (API calls, endpoints)\n2. How caching works — cache duration, cache invalidation, when fresh data is fetched vs cached data served\n3. The flow from data fetch → cache → display in the statusline\n4. Any configuration around cache TTL or refresh intervals\n\nThe user reports that the statusline shows stale numbers (e.g., 5h 38% / week 49%) while the actual /usage command shows 5h 64% / week 52%. So there's a significant staleness problem.\n\nFocus on finding all caching mechanisms and their TTLs/refresh logic. Be very thorough — check all files.",
+            "subagent_type": "Explore"
+          },
+          "timestamp": "2026-04-15T10:42:36.801Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Good analysis. Let me look at the actual cache state and the key code section myself.",
+          "timestamp": "2026-04-15T10:43:44.246Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh"
+          },
+          "timestamp": "2026-04-15T10:43:44.720Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/.claude/usage_cache.json"
+          },
+          "timestamp": "2026-04-15T10:43:45.000Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me check the cache file's actual modification time and compare with the current time.",
+          "timestamp": "2026-04-15T10:58:39.984Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "stat -f \"%m %Sm\" ~/.claude/usage_cache.json && date +%s",
+            "description": "Check cache modification time vs current time"
+          },
+          "timestamp": "2026-04-15T10:58:41.307Z"
+        },
+        {
+          "type": "assistant",
+          "text": "The cache is currently 17 minutes old. Here's what's happening:\n\n**The problem is the background refresh window (60–300 seconds).** When the cache is between 60s and 300s old, the script fetches in the background but renders the stale cache immediately. During active use with heavy API consumption, usage can jump significantly between refreshes.\n\nThe timeline for your case was likely:\n1. Cache fetched when 5h was ~38%, week ~49%\n2. Heavy usage during conversation (long response, etc.)  \n3. Statusline called again — cache 60-300s old — triggers background fetch but **displays old data**\n4. You check `/usage` — it hits the API live — shows the real 64% / 52%\n\nTwo things make this worse than it should be:\n- `CACHE_MAX_AGE=60` — stale data shown for up to 60s even during active use\n- `CACHE_STALE_AGE=300` — after long model responses (2-4 min), still serves stale data and fetches in background\n\nI'd recommend reducing both: `CACHE_MAX_AGE` from 60 to 30, and `CACHE_STALE_AGE` from 300 to 120. This halves the staleness during active use and forces a synchronous (accurate) fetch after gaps as short as 2 minutes instead of 5. The API can easily handle a request every 30 seconds.\n\nWant me to make those changes?",
+          "timestamp": "2026-04-15T11:02:32.005Z"
+        },
+        {
+          "type": "user",
+          "text": "how often do we do background cache refresh? how often does claude hit statusline?",
+          "timestamp": "2026-04-15T11:04:52.136Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me check how the statusline hook is configured.",
+          "timestamp": "2026-04-15T11:04:56.920Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json 2>/dev/null | jq '.hooks'",
+            "description": "Check statusline hook configuration"
+          },
+          "timestamp": "2026-04-15T11:04:57.502Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.local.json 2>/dev/null | jq '.hooks' 2>/dev/null; cat ~/.claude/settings.json 2>/dev/null | jq '.' 2>/dev/null | grep -i status",
+            "description": "Check for statusline config in settings"
+          },
+          "timestamp": "2026-04-15T11:04:58.663Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json 2>/dev/null | jq '.statusLine'",
+            "description": "Check statusLine configuration"
+          },
+          "timestamp": "2026-04-15T11:05:02.074Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/install.sh"
+          },
+          "timestamp": "2026-04-15T11:05:08.782Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Here's what I know:\n\n**How often Claude Code calls the statusline:** Claude Code re-renders the statusline on UI events — user input, tool calls starting/completing, model responses streaming in. During an active conversation it could be many times per minute. During a long model response with no tool calls, it might not update at all until the response finishes. There's no fixed interval — it's event-driven.\n\n**How often background cache refresh actually fires:** At most once every 60 seconds (`CACHE_MAX_AGE=60`). Even if the statusline script runs 20 times in a minute, only the first call after 60s triggers `refresh_usage &`. All subsequent calls within that window either:\n- See the cache is <60s old → serve cache, no fetch\n- See the lock directory exists (background fetch still running) → serve cache, skip fetch\n\nSo: **the statusline renders frequently, but the API is only hit once per ~60 seconds at most.** The \"stale display\" problem isn't about API call frequency — it's about the **display always being one cycle behind** because the background fetch hasn't completed yet when the current render reads the cache.\n\nThe 38% → 64% gap you saw was likely from a long model response where the statusline didn't re-render for a few minutes. When it finally did, the cache was in the 60–300s range, so it kicked off a background fetch but showed the old 38% number. Meanwhile `/usage` hit the API synchronously and showed the real 64%.\n\nReducing `CACHE_MAX_AGE` won't help much for that scenario — the real lever is `CACHE_STALE_AGE`. Dropping it from 300 to 120 means that after any 2+ minute gap (like a long model response), the next render fetches synchronously and shows accurate data immediately. Want me to make that change?",
+          "timestamp": "2026-04-15T11:05:22.130Z"
+        },
+        {
+          "type": "user",
+          "text": "also how does caching work here",
+          "timestamp": "2026-04-15T11:05:22.168Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\n\nLooking at the code, caching works through the **file modification time** (`stat -f %m`), not through any field in the JSON itself.\n\n```\nCACHE=\"$HOME/.claude/usage_cache.json\"\n```\n\n**The flow:**\n\n1. `NOW=$(date +%s)` — capture current epoch (line 4)\n2. `stat -f %m \"$CACHE\"` — get the cache file's **filesystem mtime** (lines 62, 64)\n3. Compare the delta against the two thresholds:\n   - `> CACHE_STALE_AGE (300s)` → sync fetch, blocks until done\n   - `> CACHE_MAX_AGE (60s)` → background fetch, serve old data now\n   - otherwise → serve cache as-is\n\n4. Read whatever's in the cache file at lines 141-145, regardless of which branch ran\n\nThe `fetched_at` field in the JSON (line 48) is written but **never read** — it's dead weight. The script relies entirely on the file's mtime to determine freshness.\n\n```json\n{\"five_hour_pct\":68,\"five_hour_reset\":\"2026-04-15 15:00:00\",\"seven_day_pct\":53,\"seven_day_reset\":\"2026-04-20 13:00:00\",\"fetched_at\":1776249825}\n```\n\nThe `fetched_at` was probably added for debugging, but it means there are two independent \"timestamps\" that could diverge — the file mtime (what the script trusts) and `fetched_at` (ignored). Not a bug, but a bit misleading.",
+          "timestamp": "2026-04-15T11:05:33.242Z"
+        },
+        {
+          "type": "user",
+          "text": "'d recommend reducing both: CACHE_MAX_AGE from 60 to 30, and CACHE_STALE_AGE from 300 to 120. - let's do this",
+          "timestamp": "2026-04-15T11:08:03.479Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/statusline.sh",
+            "new_string": "CACHE_MAX_AGE=30\nCACHE_STALE_AGE=120  # After 2 min, fetch synchronously for fresh data on return",
+            "old_string": "CACHE_MAX_AGE=60\nCACHE_STALE_AGE=300  # After 5 min, fetch synchronously for fresh data on return",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-15T11:08:07.269Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Also update the install script comment that references the 60s interval.",
+          "timestamp": "2026-04-15T11:08:57.902Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/atermenji/Coding/claude-statusline-extra/install.sh",
+            "new_string": "# status line. Refreshes usage data from the Anthropic API every 30s in the",
+            "old_string": "# status line. Refreshes usage data from the Anthropic API every 60s in the",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-15T11:08:59.049Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Done. Two changes:\n- `CACHE_MAX_AGE`: 60 → 30 — background refresh triggers twice as often during active use\n- `CACHE_STALE_AGE`: 300 → 120 — synchronous (blocking) fetch after 2 min gaps instead of 5",
+          "timestamp": "2026-04-15T11:09:02.580Z"
+        }
+      ],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
